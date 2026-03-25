@@ -66,17 +66,15 @@
 ;;; File loader
 ;;; ----------------
 
-(defun TRACE:LoadFile (filepath / f expr count)
+(defun TRACE:LoadFile (filepath / f expr count eof)
   (setq f     (open filepath "r")
-        count 0)
-
-  (while (setq expr (read f))
+        count 0
+        eof   (gensym))   ; unique sentinel; nil could be a valid form
+  (while (not (eq (setq expr (read f eof)) eof))
     (eval (TRACE:Rewrite expr))
     (setq count (1+ count))
   )
-
   (close f)
-
   (princ (strcat "\n[TRACE] Loaded: " filepath
                  " (" (itoa count) " forms)"))
 )
