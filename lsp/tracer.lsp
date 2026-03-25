@@ -5,8 +5,16 @@
 (setq TRACE:*depth* 0)
 (setq TRACE:*traced* '())
 
+(defun TRACE:MakeIndent (depth / result)
+  (setq result "")
+  (repeat depth
+    (setq result (strcat result "  "))
+  )
+  result
+)
+
 (defun TRACE:Indent ()
-  (apply 'strcat (repeat TRACE:*depth* " "))
+  (TRACE:MakeIndent TRACE:*depth*)
 )
 
 (defun TRACE:Call (name fn args / result)
@@ -78,7 +86,7 @@
 ;;; ----------------
 
 (defun TRACE:WalkFolder (folder depth / files subdirs indent)
-  (setq indent (apply 'strcat (repeat depth "  ")))
+  (setq indent (TRACE:MakeIndent depth))
 
   ;; Load all .lsp files in this folder
   (setq files (vl-directory-files folder "*.lsp" 1))
@@ -90,7 +98,7 @@
   (setq subdirs
     (vl-remove-if
       (function (lambda (d) (member d '("." ".."))))
-      (vl-directory-files folder nil -1)   ; -1 = dirs only
+      (vl-directory-files folder nil -1)
     )
   )
 
@@ -104,14 +112,13 @@
 ;;; Folder loader (public entry point)
 ;;; ----------------
 
-(defun TRACE:LoadFolder (folder / before after new-fns)
+(defun TRACE:LoadFolder (folder)
   (setq TRACE:*traced* '())
 
   (princ (strcat "\n[TRACE] Walking tree from: " folder))
 
   (TRACE:WalkFolder folder 0)
 
-  ;; Summary
   (princ (strcat "\n[TRACE] "
                  (itoa (length TRACE:*traced*))
                  " function(s) instrumented:"))
