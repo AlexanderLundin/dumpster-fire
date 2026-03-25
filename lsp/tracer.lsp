@@ -66,14 +66,13 @@
 ;;; File loader
 ;;; ----------------
 
-(defun TRACE:LoadFile (filepath / f expr count line acc depth ch i)
+(defun TRACE:LoadFile (filepath / f expr count line acc depth ch i result)
   (setq f     (open filepath "r")
         count 0
         acc   ""
         depth 0)
 
   (while (setq line (read-line f))
-    ;; walk each character to track paren depth
     (setq i 1)
     (while (<= i (strlen line))
       (setq ch (substr line i 1))
@@ -85,15 +84,25 @@
     )
     (setq acc (strcat acc "\n" line))
 
-    ;; when depth returns to 0 we have a complete form
     (if (= depth 0)
       (progn
-        (setq expr (read acc))
-        (if expr
-          (progn
-            (eval (TRACE:Rewrite expr))
-            (setq count (1+ count))
+        (setq result
+          (vl-catch-all-apply
+            (function (lambda ()
+              (setq expr (read acc))
+              (if expr
+                (progn
+                  (eval (TRACE:Rewrite expr))
+                  (setq count (1+ count))
+                )
+              )
+            ))
           )
+        )
+        (if (vl-catch-all-error-p result)
+          (princ (strcat "\n[TRACE] Skipping malformed form in: " filepath
+                         "\n  Reason: " (vl-catch-all-error-message result)
+                         "\n  Form: " acc))
         )
         (setq acc "")
       )
