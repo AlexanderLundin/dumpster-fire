@@ -3,7 +3,7 @@
 ;;; ================================
 
 (setq TRACE:*depth* 0)
-(setq TRACE:*traced* '())   ; <-- collector for redefined names
+(setq TRACE:*traced* '())
 
 (defun TRACE:Indent ()
   (apply 'strcat (repeat TRACE:*depth* " "))
@@ -43,16 +43,15 @@
   (setq args (caddr expr))
   (setq body (cdddr expr))
 
-  ;; Record that this function was traced
   (setq TRACE:*traced* (cons (vl-symbol-name name) TRACE:*traced*))
 
   (list 'defun name args
     (list 'TRACE:Call
       (vl-symbol-name name)
-      (list 'quote                        ; use quote, not lambda-in-list
+      (list 'quote
             (list 'lambda args
               (cons 'progn (mapcar 'TRACE:Rewrite body))))
-      (list 'list (cons 'list args))))    ; pass args at call time
+      (list 'list (cons 'list args))))
 )
 
 ;;; ----------------
@@ -75,21 +74,46 @@
 )
 
 ;;; ----------------
-;;; Folder loader
+;;; Recursive folder loader (internal)
 ;;; ----------------
 
-(defun TRACE:LoadFolder (folder / files)
-  (setq TRACE:*traced* '())   ; reset collector before each load pass
+(defun TRACE:WalkFolder (folder depth / files subdirs indent)
+  (setq indent (apply 'strcat (repeat depth "  ")))
 
+  ;; Load all .lsp files in this folder
   (setq files (vl-directory-files folder "*.lsp" 1))
-
   (foreach file files
     (TRACE:LoadFile (strcat folder "\\" file))
   )
 
-  ;; Print every function that was traced
-  (princ (strcat "\n[TRACE] Loaded folder: " folder))
-  (princ (strcat "\n[TRACE] " (itoa (length TRACE:*traced*))
+  ;; Find subdirectories, skipping . and ..
+  (setq subdirs
+    (vl-remove-if
+      (function (lambda (d) (member d '("." ".."))))
+      (vl-directory-files folder nil -1)   ; -1 = dirs only
+    )
+  )
+
+  (foreach dir subdirs
+    (princ (strcat "\n" indent "[TRACE] Entering: " dir))
+    (TRACE:WalkFolder (strcat folder "\\" dir) (1+ depth))
+  )
+)
+
+;;; ----------------
+;;; Folder loader (public entry point)
+;;; ----------------
+
+(defun TRACE:LoadFolder (folder / before after new-fns)
+  (setq TRACE:*traced* '())
+
+  (princ (strcat "\n[TRACE] Walking tree from: " folder))
+
+  (TRACE:WalkFolder folder 0)
+
+  ;; Summary
+  (princ (strcat "\n[TRACE] "
+                 (itoa (length TRACE:*traced*))
                  " function(s) instrumented:"))
   (foreach fn (reverse TRACE:*traced*)
     (princ (strcat "\n  + " fn))
