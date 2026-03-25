@@ -65,7 +65,6 @@
 ;;; ----------------
 ;;; File loader
 ;;; ----------------
-
 (defun TRACE:LoadFile (filepath / f expr count line acc depth ch i result)
   (setq f     (open filepath "r")
         count 0
@@ -89,11 +88,15 @@
         (setq result
           (vl-catch-all-apply
             (function (lambda ()
-              (setq expr (read acc))
-              (if expr
+              (if (vl-string-search "defun" acc)
                 (progn
-                  (eval (TRACE:Rewrite expr))
-                  (setq count (1+ count))
+                  (setq expr (read acc))
+                  (if expr
+                    (progn
+                      (eval (TRACE:Rewrite expr))
+                      (setq count (1+ count))
+                    )
+                  )
                 )
               )
             ))
@@ -114,6 +117,8 @@
   (princ (strcat "\n[TRACE] Loaded: " filepath
                  " (" (itoa count) " forms)"))
 )
+
+
 
 
 ;;; ----------------
