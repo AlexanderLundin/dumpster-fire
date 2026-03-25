@@ -3,6 +3,7 @@
 ;;; ================================
 
 (setq TRACE:*depth* 0)
+(setq TRACE:*traced* '())   ; <-- collector for redefined names
 
 (defun TRACE:Indent ()
   (apply 'strcat (repeat TRACE:*depth* " "))
@@ -26,12 +27,10 @@
 
 (defun TRACE:Rewrite (expr)
   (cond
-    ;; rewrite defun
     ((and (listp expr)
-          (= (car expr) 'defun))
+          (eq (car expr) 'defun))
      (TRACE:RewriteDefun expr))
 
-    ;; recurse lists
     ((listp expr)
      (mapcar 'TRACE:Rewrite expr))
 
@@ -44,26 +43,35 @@
   (setq args (caddr expr))
   (setq body (cdddr expr))
 
+  ;; Record that this function was traced
+  (setq TRACE:*traced* (cons (vl-symbol-name name) TRACE:*traced*))
+
   (list 'defun name args
     (list 'TRACE:Call
-      (strcat (symbol-name name))
-      (list 'lambda args
-        (cons 'progn (mapcar 'TRACE:Rewrite body)))
-      (cons 'list args)))
+      (vl-symbol-name name)
+      (list 'quote                        ; use quote, not lambda-in-list
+            (list 'lambda args
+              (cons 'progn (mapcar 'TRACE:Rewrite body))))
+      (list 'list (cons 'list args))))    ; pass args at call time
 )
 
 ;;; ----------------
 ;;; File loader
 ;;; ----------------
 
-(defun TRACE:LoadFile (filepath / f expr)
-  (setq f (open filepath "r"))
+(defun TRACE:LoadFile (filepath / f expr count)
+  (setq f     (open filepath "r")
+        count 0)
 
   (while (setq expr (read f))
     (eval (TRACE:Rewrite expr))
+    (setq count (1+ count))
   )
 
   (close f)
+
+  (princ (strcat "\n[TRACE] Loaded: " filepath
+                 " (" (itoa count) " forms)"))
 )
 
 ;;; ----------------
@@ -71,12 +79,21 @@
 ;;; ----------------
 
 (defun TRACE:LoadFolder (folder / files)
+  (setq TRACE:*traced* '())   ; reset collector before each load pass
+
   (setq files (vl-directory-files folder "*.lsp" 1))
 
   (foreach file files
     (TRACE:LoadFile (strcat folder "\\" file))
   )
 
+  ;; Print every function that was traced
   (princ (strcat "\n[TRACE] Loaded folder: " folder))
+  (princ (strcat "\n[TRACE] " (itoa (length TRACE:*traced*))
+                 " function(s) instrumented:"))
+  (foreach fn (reverse TRACE:*traced*)
+    (princ (strcat "\n  + " fn))
+  )
+
   (princ)
 )
