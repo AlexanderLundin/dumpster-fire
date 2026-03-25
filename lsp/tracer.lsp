@@ -65,30 +65,60 @@
 ;;; ----------------
 ;;; File loader
 ;;; ----------------
-(defun TRACE:LoadFile (filepath / f expr count line acc depth ch i result)
-  (setq f     (open filepath "r")
-        count 0
-        acc   ""
-        depth 0)
+(defun TRACE:LoadFile (filepath / f expr count line acc depth ch i result in-string trimmed)
+  (setq f         (open filepath "r")
+        count     0
+        acc       ""
+        depth     0
+        in-string nil)
 
   (while (setq line (read-line f))
     (setq i 1)
     (while (<= i (strlen line))
       (setq ch (substr line i 1))
       (cond
-        ((= ch "(") (setq depth (1+ depth)))
-        ((= ch ")") (setq depth (1- depth)))
+        ;; Inside a string: handle escape sequences (skip next char)
+        ((and (= ch "\\") in-string)
+         (setq i (1+ i))
+        )
+        ;; Quote toggles string state
+        ((= ch "\"")
+         (setq in-string (not in-string))
+        )
+        ;; Semicolon outside a string starts a comment — skip rest of line
+        ((and (= ch ";") (not in-string))
+         (setq i (strlen line))
+        )
+        ;; Count parens only outside strings and comments
+        ((and (= ch "(") (not in-string))
+         (setq depth (1+ depth))
+        )
+        ((and (= ch ")") (not in-string))
+         (setq depth (1- depth))
+        )
       )
       (setq i (1+ i))
     )
+
+    ;; Accumulate the raw line (read will parse the real structure)
     (setq acc (strcat acc "\n" line))
 
-    (if (= depth 0)
+    ;; A complete top-level form when depth returns to 0
+    (if (and (= depth 0)
+             (/= 0 (strlen (vl-string-left-trim " \t\n" acc))))
       (progn
+        (setq trimmed (strcase (vl-string-left-trim " \t\n" acc) T))
         (setq result
           (vl-catch-all-apply
             (function (lambda ()
-              (if (vl-string-search "defun" acc)
+              ;; Only match forms that *start* with (defun
+              ;; This correctly handles multi-line defun signatures like:
+              ;;   (defun Function
+              ;;     ( arg1 arg2 arg3
+              ;;       / local1 local2 local3 )
+              ;;     body ...
+              ;;   )
+              (if (= 0 (vl-string-search "(defun " trimmed))
                 (progn
                   (setq expr (read acc))
                   (if expr
@@ -108,6 +138,7 @@
                          "\n  Form: " acc))
         )
         (setq acc "")
+        (setq in-string nil)
       )
     )
   )
