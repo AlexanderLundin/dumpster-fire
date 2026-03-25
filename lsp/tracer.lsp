@@ -66,18 +66,46 @@
 ;;; File loader
 ;;; ----------------
 
-(defun TRACE:LoadFile (filepath / f expr count eof)
+(defun TRACE:LoadFile (filepath / f expr count line acc depth ch i)
   (setq f     (open filepath "r")
         count 0
-        eof   (gensym))   ; unique sentinel; nil could be a valid form
-  (while (not (eq (setq expr (read f eof)) eof))
-    (eval (TRACE:Rewrite expr))
-    (setq count (1+ count))
+        acc   ""
+        depth 0)
+
+  (while (setq line (read-line f))
+    ;; walk each character to track paren depth
+    (setq i 1)
+    (while (<= i (strlen line))
+      (setq ch (substr line i 1))
+      (cond
+        ((= ch "(") (setq depth (1+ depth)))
+        ((= ch ")") (setq depth (1- depth)))
+      )
+      (setq i (1+ i))
+    )
+    (setq acc (strcat acc "\n" line))
+
+    ;; when depth returns to 0 we have a complete form
+    (if (= depth 0)
+      (progn
+        (setq expr (read acc))
+        (if expr
+          (progn
+            (eval (TRACE:Rewrite expr))
+            (setq count (1+ count))
+          )
+        )
+        (setq acc "")
+      )
+    )
   )
+
   (close f)
+
   (princ (strcat "\n[TRACE] Loaded: " filepath
                  " (" (itoa count) " forms)"))
 )
+
 
 ;;; ----------------
 ;;; Recursive folder loader (internal)
