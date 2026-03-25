@@ -30,6 +30,24 @@
 )
 
 ;;; ----------------
+;;; Arg-list helpers
+;;; ----------------
+
+;;; Extract only the formal parameters from a defun arg list
+;;; i.e. everything before the / separator.
+;;; (a b c / x y z) → (a b c)
+;;; (a b c)         → (a b c)
+;;; ()              → ()
+(defun TRACE:GetParams (args / result)
+  (setq result '())
+  (while (and args (not (eq (car args) '/)))
+    (setq result (cons (car args) result))
+    (setq args (cdr args))
+  )
+  (reverse result)
+)
+
+;;; ----------------
 ;;; Rewrite logic
 ;;; ----------------
 
@@ -46,20 +64,24 @@
   )
 )
 
-(defun TRACE:RewriteDefun (expr / name args body)
-  (setq name (cadr expr))
-  (setq args (caddr expr))
-  (setq body (cdddr expr))
+(defun TRACE:RewriteDefun (expr / name args params body)
+  (setq name   (cadr expr))
+  (setq args   (caddr expr))
+  (setq params (TRACE:GetParams args))   ; formal params only (no / locals)
+  (setq body   (cdddr expr))
 
   (setq TRACE:*traced* (cons (vl-symbol-name name) TRACE:*traced*))
 
+  ;; The rewritten defun keeps the full arg list (with / locals) so that
+  ;; local variables are properly scoped.  But when passing values to
+  ;; TRACE:Call we only pass the formal params — not / or the locals.
   (list 'defun name args
     (list 'TRACE:Call
       (vl-symbol-name name)
       (list 'quote
-            (list 'lambda args
+            (list 'lambda params
               (cons 'progn (mapcar 'TRACE:Rewrite body))))
-      (list 'list (cons 'list args))))
+      (cons 'list params)))
 )
 
 ;;; ----------------
