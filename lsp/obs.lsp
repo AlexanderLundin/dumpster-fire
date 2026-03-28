@@ -192,12 +192,12 @@
 
 ;;; ----- Core: The TRACE:Call Wrapper ------------------------------------
 
-(defun OBS:WrappedTraceCall (name paramNames fn args / t0 t1 elapsed result err)
+(defun OBS:WrappedTraceCall (name fn args / t0 t1 elapsed result err)
   "Replacement for TRACE:Call that adds timing, error trapping, and watches."
 
   (if (null OBS:*enabled*)
     ;; If observability is disabled, pass through to original
-    (apply OBS:*original-trace-call* (list name paramNames fn args))
+    (apply OBS:*original-trace-call* (list name fn args))
 
     ;; --- Full observability path ---
     (progn
@@ -213,7 +213,7 @@
       (setq result
         (vl-catch-all-apply
           OBS:*original-trace-call*
-          (list name paramNames fn args)
+          (list name fn args)
         )
       )
 
@@ -304,8 +304,8 @@
           ;; We use defun so it's a proper USUBR with the same signature.
           ;; The wrapper delegates to OBS:WrappedTraceCall which uses the
           ;; saved original via apply.
-          (defun TRACE:Call (name paramNames fn args)
-            (OBS:WrappedTraceCall name paramNames fn args)
+          (defun TRACE:Call (name fn args)
+            (OBS:WrappedTraceCall name fn args)
           )
 
           (setq OBS:*wrapped* T)
@@ -331,8 +331,8 @@
       ;; We use defun to create a pass-through that calls the original.
       ;; (We can't directly "set" a function symbol to a USUBR in standard
       ;; AutoLISP, so we wrap it in a thin defun that uses apply.)
-      (defun TRACE:Call (name paramNames fn args)
-        (apply OBS:*original-trace-call* (list name paramNames fn args))
+      (defun TRACE:Call (name fn args)
+        (apply OBS:*original-trace-call* (list name fn args))
       )
 
       ;; Flush and close log
