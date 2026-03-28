@@ -29,11 +29,6 @@
 
 ;;; ----- Internal State --------------------------------------------------
 
-;; Saved reference to the original TRACE:Call function.
-;; In AutoLISP, (defun TRACE:Call ...) binds the function object (USUBR)
-;; directly to the symbol TRACE:Call. We save it with plain setq — no
-;; "symbol-function" needed (that's Common Lisp, not AutoLISP).
-(setq OBS:*original-trace-call* nil)
 (setq OBS:*wrapped* nil)
 
 ;; Statistics: assoc list of ( "FuncName" count totalMs )
@@ -192,12 +187,23 @@
 
 ;;; ----- Core: The TRACE:Call Wrapper ------------------------------------
 
+(defun OBS:DoTraceCall (name fn args / result)
+  "Execute the original TRACE:Call behavior inline (enter/exit print + apply)."
+  (princ (strcat "\n" (TRACE:Indent) "[ENTER] " name))
+  (setq TRACE:*depth* (1+ TRACE:*depth*))
+  (setq result (apply fn args))
+  (setq TRACE:*depth* (1- TRACE:*depth*))
+  (princ (strcat "\n" (TRACE:Indent) "[EXIT] " name))
+  result
+)
+
 (defun OBS:WrappedTraceCall (name fn args / t0 t1 elapsed result err)
-  "Replacement for TRACE:Call that adds timing, error trapping, and watches."
+  "Hook for TRACE:*hook* — adds timing, error trapping, and watches around
+   the normal TRACE:Call enter/exit behavior."
 
   (if (null OBS:*enabled*)
-    ;; If observability is disabled, pass through to original
-    (apply OBS:*original-trace-call* (list name fn args))
+    ;; Observability disabled — run original behavior directly
+    (OBS:DoTraceCall name fn args)
 
     ;; --- Full observability path ---
     (progn
@@ -209,10 +215,10 @@
       ;; Record start time
       (setq t0 (OBS:GetTimeMs))
 
-      ;; Call the original TRACE:Call inside error trap
+      ;; Run the original TRACE:Call behavior inside an error trap
       (setq result
         (vl-catch-all-apply
-          OBS:*original-trace-call*
+          'OBS:DoTraceCall
           (list name fn args)
         )
       )
@@ -276,7 +282,7 @@
 ;;; ----- Wrap / Unwrap ---------------------------------------------------
 
 (defun OBS:Wrap ()
-  "Wrap TRACE:Call with observability. Call AFTER tracer.lsp is loaded."
+  "Install observability hook into TRACE:*hook*. Call AFTER tracer.lsp is loaded."
 
   ;; Guard: don't double-wrap
   (if OBS:*wrapped*
@@ -285,34 +291,25 @@
       (princ)
     )
     (progn
-      ;; Verify TRACE:Call exists
-      (if (null TRACE:Call)
+      ;; Verify tracer.lsp is loaded (TRACE:*hook* must exist)
+      (if (not (boundp 'TRACE:*hook*))
         (progn
-          (princ "\n[OBS] ERROR: TRACE:Call is not defined. Load tracer.lsp first!")
+          (princ "\n[OBS] ERROR: TRACE:*hook* not defined. Load tracer.lsp first!")
           (princ)
         )
         (progn
-          ;; Save the original function reference.
-          ;; In AutoLISP, defun binds the USUBR directly to the symbol.
-          ;; Simply evaluating the symbol gives us the function object.
-          (setq OBS:*original-trace-call* TRACE:Call)
-
-          ;; Redefine TRACE:Call to point to our wrapper.
-          ;; We use defun so it's a proper USUBR with the same signature.
-          ;; The wrapper delegates to OBS:WrappedTraceCall which uses the
-          ;; saved original via apply.
-          (defun TRACE:Call (name fn args)
-            (OBS:WrappedTraceCall name fn args)
-          )
-
+          ;; Install our function as the call hook.
+          ;; TRACE:Call checks TRACE:*hook* and delegates to it when non-nil.
+          ;; No USUBR redefinition needed — zero risk of argument mismatch.
+          (setq TRACE:*hook* 'OBS:WrappedTraceCall)
           (setq OBS:*wrapped* T)
 
           ;; Initialize log
           (OBS:OpenLog)
-          (OBS:Log (strcat "[OBS] Observability layer active | " (OBS:Timestamp)))
+          (OBS:Log (strcat "[OBS] Observability hook installed | " (OBS:Timestamp)))
           (OBS:Log (strcat "[OBS] Log: " OBS:*logfile*))
 
-          (princ "\n[OBS] TRACE:Call wrapped with observability.")
+          (princ "\n[OBS] Observability hook installed.")
           (princ)
         )
       )
@@ -321,23 +318,18 @@
 )
 
 (defun OBS:Unwrap ()
-  "Remove the observability wrapper, restoring original TRACE:Call."
-  (if (and OBS:*wrapped* OBS:*original-trace-call*)
+  "Remove the observability hook, restoring default TRACE:Call behavior."
+  (if OBS:*wrapped*
     (progn
-      ;; Restore original by redefining TRACE:Call from the saved USUBR.
-      ;; We use defun to create a pass-through that calls the original.
-      ;; (We can't directly "set" a function symbol to a USUBR in standard
-      ;; AutoLISP, so we wrap it in a thin defun that uses apply.)
-      (defun TRACE:Call (name fn args)
-        (apply OBS:*original-trace-call* (list name fn args))
-      )
+      ;; Simply clear the hook — TRACE:Call reverts to its default behavior
+      (setq TRACE:*hook* nil)
 
       ;; Flush and close log
-      (OBS:Log (strcat "[OBS] Unwrapped | " (OBS:Timestamp)))
+      (OBS:Log (strcat "[OBS] Hook removed | " (OBS:Timestamp)))
       (OBS:CloseLog)
 
       (setq OBS:*wrapped* nil)
-      (princ "\n[OBS] Unwrapped. Original TRACE:Call restored (via passthrough).")
+      (princ "\n[OBS] Unwrapped. Default TRACE:Call behavior restored.")
       (princ)
     )
     (progn
@@ -491,10 +483,10 @@
 
 (princ "\n[OBS] Observability framework loaded.")
 
-;; Auto-wrap if TRACE:Call is already defined (tracer.lsp loaded first)
-(if (and TRACE:Call (not OBS:*wrapped*))
+;; Auto-wrap if tracer.lsp is already loaded (TRACE:*hook* will be defined)
+(if (and (boundp 'TRACE:*hook*) (not OBS:*wrapped*))
   (OBS:Wrap)
-  (princ "\n[OBS] TRACE:Call not yet defined. Call (OBS:Wrap) after loading tracer.lsp.")
+  (princ "\n[OBS] tracer.lsp not yet loaded. Call (OBS:Wrap) after loading tracer.lsp.")
 )
 
 (princ)

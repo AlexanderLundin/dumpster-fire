@@ -4,6 +4,7 @@
 
 (setq TRACE:*depth* 0)
 (setq TRACE:*traced* '())
+(setq TRACE:*hook* nil)   ; set to a function symbol by OBS to intercept calls
 
 (defun TRACE:MakeIndent (depth / result)
   (setq result "")
@@ -18,15 +19,19 @@
 )
 
 (defun TRACE:Call (name fn args / result)
-  (princ (strcat "\n" (TRACE:Indent) "[ENTER] " name))
-  (setq TRACE:*depth* (1+ TRACE:*depth*))
-
-  (setq result (apply fn args))
-
-  (setq TRACE:*depth* (1- TRACE:*depth*))
-  (princ (strcat "\n" (TRACE:Indent) "[EXIT] " name))
-
-  result
+  (if TRACE:*hook*
+    ;; Delegate to hook (e.g. OBS observability layer)
+    (apply TRACE:*hook* (list name fn args))
+    ;; Default: print enter/exit and invoke the function
+    (progn
+      (princ (strcat "\n" (TRACE:Indent) "[ENTER] " name))
+      (setq TRACE:*depth* (1+ TRACE:*depth*))
+      (setq result (apply fn args))
+      (setq TRACE:*depth* (1- TRACE:*depth*))
+      (princ (strcat "\n" (TRACE:Indent) "[EXIT] " name))
+      result
+    )
+  )
 )
 
 ;;; ----------------
