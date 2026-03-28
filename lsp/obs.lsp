@@ -408,7 +408,7 @@
         )
       )
     )
-  )
+  
 
   (OBS:Log "")
   (OBS:Log "=== END STATISTICS ===")
