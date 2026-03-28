@@ -247,10 +247,7 @@
             (OBS:CheckWatches (strcat "AFTER(ERR) " name))
           )
           ;; Re-signal the error so caller sees it
-          (vl-catch-all-apply
-            (function (lambda () (error err)))
-            nil
-          )
+          (error err)
         )
         ;; --- Success path ---
         (progn
@@ -408,7 +405,7 @@
         )
       )
     )
-  
+  )
 
   (OBS:Log "")
   (OBS:Log "=== END STATISTICS ===")

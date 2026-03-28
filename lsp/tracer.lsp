@@ -171,8 +171,16 @@
 (defun TRACE:WalkFolder (folder depth / files subdirs indent)
   (setq indent (TRACE:MakeIndent depth))
 
-  ;; Load all .lsp files in this folder
+  ;; Load all .lsp files in this folder, skipping tracer/obs infrastructure
   (setq files (vl-directory-files folder "*.lsp" 1))
+  (setq files
+    (vl-remove-if
+      (function (lambda (f)
+        (or (= (strcase f) "TRACER.LSP")
+            (= (strcase f) "OBS.LSP"))))
+      files
+    )
+  )
   (foreach file files
     (TRACE:LoadFile (strcat folder "\\" file))
   )
