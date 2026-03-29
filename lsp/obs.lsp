@@ -189,11 +189,11 @@
 
 (defun OBS:DoTraceCall (name fn args / result)
   "Execute the original TRACE:Call behavior inline (enter/exit print + apply)."
-  (princ (strcat "\n" (TRACE:Indent) "[ENTER] " name))
+  (OBS:Log (strcat (TRACE:Indent) "[ENTER] " name))
   (setq TRACE:*depth* (1+ TRACE:*depth*))
   (setq result (apply fn args))
   (setq TRACE:*depth* (1- TRACE:*depth*))
-  (princ (strcat "\n" (TRACE:Indent) "[EXIT] " name))
+  (OBS:Log (strcat (TRACE:Indent) "[EXIT] " name))
   result
 )
 
