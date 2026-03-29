@@ -394,7 +394,6 @@
       (foreach w OBS:*watches*
         (OBS:Log
           (strcat "  " (car w) " = " (vl-princ-to-string (cdr w))))
-        )
       )
     )
   )
