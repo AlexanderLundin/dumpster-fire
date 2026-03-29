@@ -291,13 +291,6 @@
       (princ)
     )
     (progn
-      ;; Verify tracer.lsp is loaded (TRACE:*hook* must exist)
-      (if (not (boundp 'TRACE:*hook*))
-        (progn
-          (princ "\n[OBS] ERROR: TRACE:*hook* not defined. Load tracer.lsp first!")
-          (princ)
-        )
-        (progn
           ;; Install our function as the call hook.
           ;; TRACE:Call checks TRACE:*hook* and delegates to it when non-nil.
           ;; No USUBR redefinition needed — zero risk of argument mismatch.
@@ -311,8 +304,6 @@
 
           (princ "\n[OBS] Observability hook installed.")
           (princ)
-        )
-      )
     )
   )
 )
@@ -482,11 +473,8 @@
 
 (princ "\n[OBS] Observability framework loaded.")
 
-;; Auto-wrap if tracer.lsp is already loaded (TRACE:*hook* will be defined)
-(if (and (boundp 'TRACE:*hook*) (not OBS:*wrapped*))
-  (OBS:Wrap)
-  (princ "\n[OBS] tracer.lsp not yet loaded. Call (OBS:Wrap) after loading tracer.lsp.")
-)
+;; Auto-wrap (TRACE:*hook* will be defined)
+(OBS:Wrap)
 
 (princ)
 
