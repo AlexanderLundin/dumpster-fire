@@ -287,7 +287,7 @@
   ;; Guard: don't double-wrap
   (if OBS:*wrapped*
     (progn
-      (princ "\n[OBS] Already wrapped. Call (OBS:Unwrap) first to re-wrap.")
+      (OBS:Log "[OBS] Already wrapped. Call (OBS:Unwrap) first to re-wrap.")
       (princ)
     )
     (progn
@@ -302,9 +302,9 @@
           (OBS:Log (strcat "[OBS] Observability hook installed | " (OBS:Timestamp)))
           (OBS:Log (strcat "[OBS] Log: " OBS:*logfile*))
 
-          (princ "\n[OBS] Observability hook installed.")
+          (OBS:Log "[OBS] Observability hook installed.")
           (princ)
-    )
+      )
   )
 )
 
@@ -320,11 +320,11 @@
       (OBS:CloseLog)
 
       (setq OBS:*wrapped* nil)
-      (princ "\n[OBS] Unwrapped. Default TRACE:Call behavior restored.")
+      (OBS:Log "[OBS] Unwrapped. Default TRACE:Call behavior restored.")
       (princ)
     )
     (progn
-      (princ "\n[OBS] Not currently wrapped.")
+      (OBS:Log "[OBS] Not currently wrapped.")
       (princ)
     )
   )
@@ -385,8 +385,8 @@
       (foreach w OBS:*watches*
         (OBS:Log
           (strcat "  " (car w) " = " (vl-princ-to-string (cdr w))))
-      )
-    )
+        )
+     )
   )
 
   (OBS:Log "")
@@ -438,14 +438,14 @@
 (defun c:OBS-ON ()
   "Command: Enable observability"
   (setq OBS:*enabled* T)
-  (princ "\n[OBS] Enabled.")
+  (OBS:Log "[OBS] Enabled.")
   (princ)
 )
 
 (defun c:OBS-OFF ()
   "Command: Disable observability (passthrough mode)"
   (setq OBS:*enabled* nil)
-  (princ "\n[OBS] Disabled (passthrough).")
+  (OBS:Log "[OBS] Disabled (passthrough).")
   (princ)
 )
 
@@ -459,7 +459,7 @@
   (setq varname (getstring T "\nVariable name to watch: "))
   (if (/= varname "")
     (OBS:Watch varname)
-    (princ "\n[OBS] Cancelled.")
+    (OBS:Log "[OBS] Cancelled.")
   )
   (princ)
 )
@@ -473,7 +473,7 @@
 
 (princ "\n[OBS] Observability framework loaded.")
 
-;; Auto-wrap (TRACE:*hook* will be defined)
+;; Auto-wrap if tracer.lsp is already loaded (TRACE:*hook* will be defined)
 (OBS:Wrap)
 
 (princ)
@@ -492,7 +492,7 @@
 ; (OBS:Watch "myVar1List")
 ; (OBS:Watch "myList2")
 ; (OBS:Watch "myList3")
-; (princ "\n[INIT] Observability ready. Variables: myVar1, myVar1List, myList2, myList3")
+; (OBS:Log "[INIT] Observability ready. Variables: myVar1, myVar1List, myList2, myList3")
 ; 
 ;;; After your workflow completes, dump stats:
 ; (OBS:DumpStats)
@@ -506,13 +506,15 @@
 ; (OBS:Watch "myVar1")
 ; (princ "\n[INIT] Watching myVar1 for mutations")
 
+; (OBS:Log "[INIT] Watching myVar1 for mutations")
+
 ;;; =====================================================================
 ;;; Pattern 3: Silent mode (statistics only, no alerts)
 ;;; =====================================================================
 ; (load "C:\\temp\\tracer.lsp")
 ; (load "C:\\temp\\obs.lsp")
 ; (setq OBS:*enabled* T)
-; (princ "\n[INIT] Observability running silently (stats only)")
+; (OBS:Log "[INIT] Observability running silently (stats only)")
 ; (OBS:DumpStats)  ;; Call this after your workflow
 
 ;;; =====================================================================

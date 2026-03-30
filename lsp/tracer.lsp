@@ -5,6 +5,33 @@
 (setq TRACE:*depth* 0)
 (setq TRACE:*traced* '())
 (setq TRACE:*hook* nil)   ; set to a function symbol by OBS to intercept calls
+(setq TRACE:*logfile* "C:\\temp\\trace.log")
+(setq TRACE:*logfp* nil)
+
+(defun TRACE:OpenLog ()
+ (princ)
+ ; (setq TRACE:*logfp* (open TRACE:*logfile* "w"))
+)
+
+(defun TRACE:CloseLog ()
+ (if TRACE:*logfp*
+   (progn
+     (close TRACE:*logfp*)
+     (setq TRACE:*logfp* nil)
+   )
+ )
+)
+
+(defun TRACE:Log (msg)
+ (princ)
+ ; (if TRACE:*logfp*
+   ; (write-line msg TRACE:*logfp*)
+   ; (progn
+     ; (TRACE:OpenLog)
+     ; (write-line msg TRACE:*logfp*)
+   ; )
+ ; )
+)
 
 (defun TRACE:MakeIndent (depth / result)
   (setq result "")
@@ -24,11 +51,11 @@
     (apply TRACE:*hook* (list name fn args))
     ;; Default: print enter/exit and invoke the function
     (progn
-      (princ (strcat "\n" (TRACE:Indent) "[ENTER] " name))
+      (TRACE:Log (strcat "" (TRACE:Indent) "[ENTER] " name))
       (setq TRACE:*depth* (1+ TRACE:*depth*))
       (setq result (apply fn args))
       (setq TRACE:*depth* (1- TRACE:*depth*))
-      (princ (strcat "\n" (TRACE:Indent) "[EXIT] " name))
+      (TRACE:Log (strcat "" (TRACE:Indent) "[EXIT] " name))
       result
     )
   )
@@ -69,24 +96,38 @@
   )
 )
 
+(setq TRACE:*skip-functions*
+'(
+  myLispFunctionToSkip
+ )
+)
+
 (defun TRACE:RewriteDefun (expr / name args params body)
   (setq name   (cadr expr))
-  (setq args   (caddr expr))
-  (setq params (TRACE:GetParams args))   ; formal params only (no / locals)
-  (setq body   (cdddr expr))
+  
+ ;; Skip certain functions
+ (if (member name TRACE:*skip-functions*)
+   expr
+   (progn
 
-  (setq TRACE:*traced* (cons (vl-symbol-name name) TRACE:*traced*))
+     (setq args   (caddr expr))
+     (setq params (TRACE:GetParams args))
+     (setq body   (cdddr expr))
 
-  ;; The rewritten defun keeps the full arg list (with / locals) so that
-  ;; local variables are properly scoped.  But when passing values to
-  ;; TRACE:Call we only pass the formal params — not / or the locals.
-  (list 'defun name args
-    (list 'TRACE:Call
-      (vl-symbol-name name)
-      (list 'quote
-            (list 'lambda params
-              (cons 'progn (mapcar 'TRACE:Rewrite body))))
-      (cons 'list params)))
+     (setq TRACE:*traced* (cons (vl-symbol-name name) TRACE:*traced*))
+
+     (list 'defun name args
+       (list 'TRACE:Call
+         (vl-symbol-name name)
+         (list 'quote
+               (list 'lambda params
+                 (cons 'progn (mapcar 'TRACE:Rewrite body))))
+         (cons 'list params)
+       )
+     )
+   )
+ )
+ 
 )
 
 ;;; ----------------
@@ -150,7 +191,7 @@
           )
         )
         (if (vl-catch-all-error-p result)
-          (princ (strcat "\n[TRACE] Skipping malformed form in: " filepath
+          (TRACE:Log (strcat "[TRACE] Skipping malformed form in: " filepath
                          "\n  Reason: " (vl-catch-all-error-message result)
                          "\n  Form: " acc))
         )
@@ -162,7 +203,7 @@
 
   (close f)
 
-  (princ (strcat "\n[TRACE] Loaded: " filepath
+  (TRACE:Log (strcat "[TRACE] Loaded: " filepath
                  " (" (itoa count) " forms)"))
 )
 
@@ -199,7 +240,7 @@
   )
 
   (foreach dir subdirs
-    (princ (strcat "\n" indent "[TRACE] Entering: " dir))
+    (TRACE:Log (strcat "" indent "[TRACE] Entering: " dir))
     (TRACE:WalkFolder (strcat folder "\\" dir) (1+ depth))
   )
 )
@@ -211,16 +252,20 @@
 (defun TRACE:LoadFolder (folder)
   (setq TRACE:*traced* '())
 
-  (princ (strcat "\n[TRACE] Walking tree from: " folder))
+  (TRACE:Log (strcat "[TRACE] Walking tree from: " folder))
 
   (TRACE:WalkFolder folder 0)
 
-  (princ (strcat "\n[TRACE] "
+  (TRACE:Log (strcat "[TRACE] "
                  (itoa (length TRACE:*traced*))
                  " function(s) instrumented:"))
   (foreach fn (reverse TRACE:*traced*)
-    (princ (strcat "\n  + " fn))
+    (TRACE:Log (strcat "  + " fn))
   )
 
   (princ)
 )
+
+(princ "\ntracer start.")
+(TRACE:LoadFolder "C:\\temp\\LispApp")
+(princ "\ntracer complete.")
